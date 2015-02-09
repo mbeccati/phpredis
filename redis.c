@@ -5385,7 +5385,7 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
     zend_string *key;
     char *cmd = "", *old_cmd = NULL;
     int cmd_len, array_count;
-	zval *z_tab, *tmp;
+	zval z_tab, *tmp;
 	char *type_response;
 
 	/* Function call information */
@@ -5441,26 +5441,20 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
 
 	/* read the status of the execution of the command `subscribe` */
 
-    z_tab = redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock);
-	if(z_tab == NULL) {
+	if(redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, &z_tab) < 0) {
 		RETURN_FALSE;
 	}
 
-	if (tmp = zend_hash_index_find(Z_ARRVAL_P(z_tab), 0)) {
+	if (tmp = zend_hash_index_find(Z_ARRVAL(z_tab), 0)) {
 		type_response = Z_STRVAL_P(tmp);
 		if(strcmp(type_response, sub_cmd) != 0) {
-            efree(tmp);
-			zval_dtor(z_tab);
-            efree(z_tab);
+			zval_dtor(&z_tab);
 			RETURN_FALSE;
 		}
 	} else {
-		zval_dtor(z_tab);
-        efree(z_tab);
+		zval_dtor(&z_tab);
 		RETURN_FALSE;
 	}
-	zval_dtor(z_tab);
-    efree(z_tab);
 
 	/* Set a pointer to our return value and to our arguments. */
 	z_callback.retval = &z_ret;
@@ -5472,14 +5466,14 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
 		/* call the callback with this z_tab in argument */
 	    int is_pmsg, tab_idx = 1;
 		zval *type, *channel, *pattern, *data;
-	    z_tab = redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock);
 
-		if(z_tab == NULL || Z_TYPE_P(z_tab) != IS_ARRAY) {
-			/*ERROR */
-			break;
-		}
+        /* clean up if previously used*/
+        zval_dtor(&z_tab);
 
-		if (!(type = zend_hash_index_find(Z_ARRVAL_P(z_tab), 0)) || Z_TYPE_P(type) != IS_STRING) {
+		if(redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, &z_tab) < 0 ||
+                Z_TYPE(z_tab) != IS_ARRAY ||
+                !(type = zend_hash_index_find(Z_ARRVAL(z_tab), 0)) || Z_TYPE_P(type) != IS_STRING)
+        {
 			break;
 		}
 
@@ -5494,16 +5488,16 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
 		/* If this is a pmessage, we'll want to extract the pattern first */
 		if(is_pmsg) {
 			/* Extract pattern */
-			if(!(pattern = zend_hash_index_find(Z_ARRVAL_P(z_tab), tab_idx++))) {
+			if(!(pattern = zend_hash_index_find(Z_ARRVAL(z_tab), tab_idx++))) {
 				break;
 			}
 		}
 
 		/* Extract channel and data */
-		if (!(channel = zend_hash_index_find(Z_ARRVAL_P(z_tab), tab_idx++))) {
+		if (!(channel = zend_hash_index_find(Z_ARRVAL(z_tab), tab_idx++))) {
 			break;
 		}
-		if (!(data = zend_hash_index_find(Z_ARRVAL_P(z_tab), tab_idx++))) {
+		if (!(data = zend_hash_index_find(Z_ARRVAL(z_tab), tab_idx++))) {
 			break;
 		}
 
@@ -5529,8 +5523,7 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
 		}
 
         /* Free reply from Redis */
-        zval_dtor(z_tab);
-        efree(z_tab);
+        zval_dtor(&z_tab);
 
         /* Check for a non-null return value.  If we have one, return it from
          * the subscribe function itself.  Otherwise continue our loop. */
@@ -5542,6 +5535,8 @@ PHP_REDIS_API void generic_subscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *sub
         }
         zval_dtor(&z_ret);
 	}
+
+    zval_dtor(&z_tab);
 }
 
 /* {{{ proto void Redis::psubscribe(Array(pattern1, pattern2, ... patternN))
@@ -5579,7 +5574,7 @@ PHP_REDIS_API void generic_unsubscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *u
     int cmd_len, array_count;
 
 	int i;
-	zval *z_tab, *z_channel;
+	zval z_tab, *z_channel;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS(), getThis(), "Oa",
 									 &object, redis_ce, &array) == FAILURE) {
@@ -5623,19 +5618,22 @@ PHP_REDIS_API void generic_unsubscribe_cmd(INTERNAL_FUNCTION_PARAMETERS, char *u
 	array_init(return_value);
 
 	while( i <= array_count) {
-	    z_tab = redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock);
+	    if (redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, &z_tab) < 0){
+            RETURN_FALSE;
+        };
 
-		if(Z_TYPE_P(z_tab) == IS_ARRAY) {
-			if (!(z_channel = zend_hash_index_find(Z_ARRVAL_P(z_tab), 1))) {
+		if(Z_TYPE(z_tab) == IS_ARRAY) {
+			if (!(z_channel = zend_hash_index_find(Z_ARRVAL(z_tab), 1))) {
+                zval_dtor(&z_tab);
 				RETURN_FALSE;
 			}
 			add_assoc_bool(return_value, Z_STRVAL_P(z_channel), 1);
 		} else {
 			/*error */
-			efree(z_tab);
+            zval_dtor(&z_tab);
 			RETURN_FALSE;
 		}
-		efree(z_tab);
+        zval_dtor(&z_tab);
 		i ++;
 	}
 }

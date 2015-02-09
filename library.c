@@ -247,13 +247,12 @@ redis_sock_read_scan_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
     }
 }
 
-PHP_REDIS_API zval *redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock) {
+PHP_REDIS_API int redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock, zval *z_tab) {
     char inbuf[1024];
 	int numElems;
-    zval *z_tab;
 
     if(-1 == redis_check_eof(redis_sock)) {
-        return NULL;
+        return -1;
     }
 
     if(php_stream_gets(redis_sock->stream, inbuf, 1024) == NULL) {
@@ -263,21 +262,20 @@ PHP_REDIS_API zval *redis_sock_read_multibulk_reply_zval(INTERNAL_FUNCTION_PARAM
         redis_sock->mode = ATOMIC;
         redis_sock->watching = 0;
         zend_throw_exception(redis_exception_ce, "read error on connection", 0);
-        return NULL;
+        return -1;
     }
 
     if(inbuf[0] != '*') {
-        return NULL;
+        return -1;
     }
     numElems = atoi(inbuf+1);
 
-	z_tab = emalloc(sizeof(zval));
     array_init(z_tab);
 
     redis_mbulk_reply_loop(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, z_tab,
         numElems, UNSERIALIZE_ALL);
 
-    return z_tab;
+    return 0;
 }
 
 /**
