@@ -1934,7 +1934,7 @@ redis_read_reply_type(RedisSock *redis_sock, REDIS_REPLY_TYPE *reply_type, int *
  * Read a single line response, having already consumed the reply-type byte
  */
 PHP_REDIS_API int
-redis_read_variant_line(RedisSock *redis_sock, REDIS_REPLY_TYPE reply_type, zval **z_ret) {
+redis_read_variant_line(RedisSock *redis_sock, REDIS_REPLY_TYPE reply_type, zval *z_ret) {
 	/* Buffer to read our single line reply */
 	char inbuf[1024];
 	size_t line_size;
@@ -1954,36 +1954,36 @@ redis_read_variant_line(RedisSock *redis_sock, REDIS_REPLY_TYPE reply_type, zval
 		redis_sock_set_err(redis_sock, inbuf, line_size);
 
 		/* Set our response to FALSE */
-		ZVAL_FALSE(*z_ret);
+		ZVAL_FALSE(z_ret);
 	} else {
 		/* Set our response to TRUE */
-		ZVAL_TRUE(*z_ret);
+		ZVAL_TRUE(z_ret);
 	}
 
 	return 0;
 }
 
 PHP_REDIS_API int
-redis_read_variant_bulk(RedisSock *redis_sock, int size, zval **z_ret) {
+redis_read_variant_bulk(RedisSock *redis_sock, int size, zval *z_ret) {
 	/* Attempt to read the bulk reply */
 	char *bulk_resp = redis_sock_read_bulk_reply(redis_sock, size);
 
 	/* Set our reply to FALSE on failure, and the string on success */
 	if(bulk_resp == NULL) {
-		ZVAL_FALSE(*z_ret);
+		ZVAL_FALSE(z_ret);
 		return -1;
 	} else {
-		ZVAL_STRINGL(*z_ret, bulk_resp, size);
+		ZVAL_STRINGL(z_ret, bulk_resp, size);
 		free(bulk_resp);
 		return 0;
 	}
 }
 
 PHP_REDIS_API int
-redis_read_multibulk_recursive(RedisSock *redis_sock, int elements, zval **z_ret) {
+redis_read_multibulk_recursive(RedisSock *redis_sock, int elements, zval *z_ret) {
 	int reply_info;
 	REDIS_REPLY_TYPE reply_type;
-	zval *z_subelem;
+	zval z_subelem;
 
 	/* Iterate while we have elements */
 	while(elements > 0) {
@@ -1997,26 +1997,26 @@ redis_read_multibulk_recursive(RedisSock *redis_sock, int elements, zval **z_ret
 		switch(reply_type) {
 			case TYPE_ERR:
 			case TYPE_LINE:
-				ALLOC_INIT_ZVAL(z_subelem);
 				redis_read_variant_line(redis_sock, reply_type, &z_subelem);
-				add_next_index_zval(*z_ret, z_subelem);
+				add_next_index_zval(z_ret, &z_subelem);
+                zval_dtor(&z_subelem);
 				break;
 			case TYPE_INT:
 				/* Add our long value */
-				add_next_index_long(*z_ret, reply_info);
+				add_next_index_long(z_ret, reply_info);
 				break;
 			case TYPE_BULK:
 				/* Init a zval for our bulk response, read and add it */
-				ALLOC_INIT_ZVAL(z_subelem);
 				redis_read_variant_bulk(redis_sock, reply_info, &z_subelem);
-				add_next_index_zval(*z_ret, z_subelem);
+				add_next_index_zval(z_ret, &z_subelem);
+                zval_dtor(&z_subelem);
 				break;
 			case TYPE_MULTIBULK:
-				/* Construct an array for our sub element, and add it, and recurse */
-				ALLOC_INIT_ZVAL(z_subelem);
-				array_init(z_subelem);
-				add_next_index_zval(*z_ret, z_subelem);
+				/* Construct an array for our sub element, recurse and add it */
+				array_init(&z_subelem);
 				redis_read_multibulk_recursive(redis_sock, reply_info, &z_subelem);
+				add_next_index_zval(z_ret, &z_subelem);
+                zval_dtor(&z_subelem);
 				break;
             default: break; /* We know it's not < 0 from previous check */
 		}
@@ -2034,15 +2034,12 @@ redis_read_variant_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock, zv
 	REDIS_REPLY_TYPE reply_type;
 	int reply_info;
 	/*char *bulk_resp; */
-	zval *z_ret;
+	zval z_ret;
 
 	/* Attempt to read our header */
 	if(redis_read_reply_type(redis_sock, &reply_type, &reply_info) < 0) {
 		return -1;
 	}
-
-	/* Our return ZVAL */
-	MAKE_STD_ZVAL(z_ret);
 
 	/* Switch based on our top level reply type */
 	switch(reply_type) {
@@ -2051,14 +2048,14 @@ redis_read_variant_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock, zv
 			redis_read_variant_line(redis_sock, reply_type, &z_ret);
 			break;
 		case TYPE_INT:
-			ZVAL_LONG(z_ret, reply_info);
+			ZVAL_LONG(&z_ret, reply_info);
 			break;
 		case TYPE_BULK:
 			redis_read_variant_bulk(redis_sock, reply_info, &z_ret);
 			break;
 		case TYPE_MULTIBULK:
 			/* Initialize an array for our multi-bulk response */
-			array_init(z_ret);
+			array_init(&z_ret);
 
 			/* If we've got more than zero elements, parse our multi bulk respoinse recursively */
 			if(reply_info > -1) {
@@ -2072,13 +2069,9 @@ redis_read_variant_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock, zv
 	}
 
 	IF_MULTI_OR_PIPELINE() {
-		add_next_index_zval(z_tab, z_ret);
+		add_next_index_zval(z_tab, &z_ret);
 	} else {
-		/* Set our return value */
-		*return_value = *z_ret;
-	    zval_copy_ctor(return_value);
-	    zval_dtor(z_ret);
-		efree(z_ret);
+        RETVAL_ZVAL(&z_ret, 1, 1);
 	}
 
 	/* Success */

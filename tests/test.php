@@ -80,6 +80,7 @@ class TestSuite {
 			$count = count($className::$errors);
 			$rt = new $className;
 			try {
+var_dump($name);
 				$rt->setUp();
 				$rt->$name();
 				echo ($count === count($className::$errors)) ? "." : "F";
