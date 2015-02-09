@@ -6035,14 +6035,18 @@ redis_build_pubsub_cmd(RedisSock *redis_sock, char **ret, PUBSUB_TYPE type,
 
     if(type == PUBSUB_CHANNELS) {
         if(arg) {
+			zend_string *tmp = zval_get_string(arg);
+
             /* Get string argument and length and prefix if necessary */
-            key = redis_key_prefix(redis_sock, Z_STR_P(arg));
+            key = redis_key_prefix(redis_sock, tmp);
+			zend_string_release(tmp);
 
             /* With a pattern */
             cmd_len = redis_cmd_format_static(ret, "PUBSUB", "ss", "CHANNELS", sizeof("CHANNELS")-1,
                                               key->val, key->len);
 
             /* Free the channel name if we prefixed it */
+            zend_string_release(tmp);
             zend_string_release(key);
 
             /* Return command length */
@@ -6060,16 +6064,19 @@ redis_build_pubsub_cmd(RedisSock *redis_sock, char **ret, PUBSUB_TYPE type,
 
         /* Iterate our elements */
 		ZEND_HASH_FOREACH_VAL(ht_chan, z_ele) {
+			zend_string *tmp = zval_get_string(arg);
+
 			/* Get key */
-			key = zval_get_string(z_ele);
+			tmp = zval_get_string(z_ele);
 
             /* Apply prefix if required */
-            key = redis_key_prefix(redis_sock, key);
+            key = redis_key_prefix(redis_sock, tmp);
 
             /* Append this channel */
             redis_cmd_append_sstr(&cmd, key->val, key->len);
 
             /* Free key if prefixed */
+            zend_string_release(tmp);
             zend_string_release(key);
         } ZEND_HASH_FOREACH_END();
 

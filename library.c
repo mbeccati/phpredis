@@ -1043,15 +1043,13 @@ static void array_zip_values_and_scores(RedisSock *redis_sock, zval *z_tab,
         } else if (decode == SCORE_DECODE_DOUBLE) {
             add_assoc_double_ex(&z_ret, hkey->val, hkey->len, atof(hval->val));
         } else {
-            zval z;
-			ZVAL_DUP(&z, zv);
-   	        add_assoc_zval_ex(&z_ret, hkey->val, hkey->len, &z);
+   	        add_assoc_zval_ex(&z_ret, hkey->val, hkey->len, zv);
         }
 	} ZEND_HASH_FOREACH_END();
 
     /* replace */
-    zval_dtor(z_tab);
-	ZVAL_COPY_VALUE(z_tab, &z_ret);
+	zval_dtor(z_tab);
+	ZVAL_DUP(z_tab, &z_ret);
     zval_dtor(&z_ret);
 }
 
