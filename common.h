@@ -1,6 +1,6 @@
 #include "php.h"
 #include "php_ini.h"
-#include <ext/standard/php_smart_str.h>
+#include <ext/standard/php_smart_string.h>
 
 #ifndef REDIS_COMMON_H
 #define REDIS_COMMON_H
@@ -89,7 +89,7 @@ typedef enum _PUBSUB_TYPE {
 #define IF_NOT_ATOMIC() if(redis_sock->mode != ATOMIC)
 #define IF_ATOMIC() if(redis_sock->mode == ATOMIC)
 #define ELSE_IF_MULTI() else if(redis_sock->mode == MULTI) { \
-	if(redis_response_enqueued(redis_sock TSRMLS_CC) == 1) {\
+	if(redis_response_enqueued(redis_sock) == 1) {\
 		RETURN_ZVAL(getThis(), 1, 0);\
 	} else {\
 		RETURN_FALSE;\
@@ -127,7 +127,7 @@ typedef enum _PUBSUB_TYPE {
 		redis_sock->pipeline_head = redis_sock->pipeline_current;\
 	}
 
-#define SOCKET_WRITE_COMMAND(redis_sock, cmd, cmd_len) if(redis_sock_write(redis_sock, cmd, cmd_len TSRMLS_CC) < 0) { \
+#define SOCKET_WRITE_COMMAND(redis_sock, cmd, cmd_len) if(redis_sock_write(redis_sock, cmd, cmd_len) < 0) { \
 	efree(cmd); \
     RETURN_FALSE; \
 }
@@ -148,7 +148,7 @@ typedef enum _PUBSUB_TYPE {
 
 #define REDIS_ELSE_IF_MULTI(function, closure_context) \
 else if(redis_sock->mode == MULTI) { \
-	if(redis_response_enqueued(redis_sock TSRMLS_CC) == 1) {\
+	if(redis_response_enqueued(redis_sock) == 1) {\
 		REDIS_SAVE_CALLBACK(function, closure_context); \
 		RETURN_ZVAL(getThis(), 1, 0);\
 	} else {\
