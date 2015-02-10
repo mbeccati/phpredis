@@ -81,3 +81,16 @@ PHP_REDIS_API void redis_client_list_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSo
     (dest = zend_hash_str_find(Z_ARRVAL_P(zv), lower, sizeof(lower) - 1)) || \
     (dest = zend_hash_str_find(Z_ARRVAL_P(zv), upper, sizeof(upper) - 1)) \
 )
+
+#define REDIS_HASH_FOREACH_KEY_VAL(ht, key, zv) { \
+    zend_long _tmp_idx; \
+    zend_string *_tmp_key = NULL; \
+    ZEND_HASH_FOREACH_KEY_VAL(ht, _tmp_idx, key, zv) { \
+        if (!key) { _tmp_key = key = zend_long_to_str(_tmp_idx); }
+
+#define REDIS_HASH_FOREACH_END() \
+        if (_tmp_key) { zend_string_release(_tmp_key); } \
+    } ZEND_HASH_FOREACH_END(); \
+ }
+
+

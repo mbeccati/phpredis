@@ -1507,16 +1507,7 @@ PHP_METHOD(Redis, getMultiple)
     redis_cmd_init_sstr(&cmd, arg_count, "MGET", 4);
 
     /* Iterate through and grab our keys */
-    ZEND_HASH_FOREACH_KEY_VAL(hash, idx, key, z_ele) {
-		zend_string *tmp = NULL;
-
-		if (!key) {
-			char buf[ZEND_LTOA_BUF_LEN];
-
-			ZEND_LTOA(idx, buf, sizeof(buf));
-			tmp = key = zend_string_init(buf, strlen(buf), 0);
-		}
-
+    REDIS_HASH_FOREACH_KEY_VAL(hash, key, z_ele) {
         /* Apply key prefix if necessary */
         key = redis_key_prefix(redis_sock, key);
 
@@ -1525,8 +1516,7 @@ PHP_METHOD(Redis, getMultiple)
 
         /* Free our key if it was prefixed */
         zend_string_release(key);
-		if (tmp) zend_string_release(tmp);
-    } ZEND_HASH_FOREACH_END();
+    } REDIS_HASH_FOREACH_END()
 
     /* Kick off our command */
     REDIS_PROCESS_REQUEST(redis_sock, cmd.c, cmd.len);
@@ -3663,20 +3653,7 @@ generic_mset(INTERNAL_FUNCTION_PARAMETERS, char *kw, void (*fun)(INTERNAL_FUNCTI
 		}
 
 		keytable = Z_ARRVAL_P(z_array);
-		ZEND_HASH_FOREACH_KEY_VAL(keytable, idx, key, z_value_p) {
-			zend_string *tmp = NULL;
-
-			if(step == 0)
-				argc++; /* found a valid arg */
-
-
-	        if (!key) {
-    	        char buf[ZEND_LTOA_BUF_LEN];
-
-        	    ZEND_LTOA(idx, buf, sizeof(buf));
-            	tmp = key = zend_string_init(buf, strlen(buf), 0);
-	        }
-
+		REDIS_HASH_FOREACH_KEY_VAL(keytable, key, z_value_p) {
 			val = redis_serialize(redis_sock, z_value_p);
 			key = redis_key_prefix(redis_sock, key);
 
@@ -3697,8 +3674,7 @@ generic_mset(INTERNAL_FUNCTION_PARAMETERS, char *kw, void (*fun)(INTERNAL_FUNCTI
 
 			zend_string_release(val);
 			zend_string_release(key);
-			if (tmp) zend_string_release(tmp);
-		} ZEND_HASH_FOREACH_END();
+		} REDIS_HASH_FOREACH_END();
 	}
 
 	REDIS_PROCESS_REQUEST(redis_sock, cmd, cmd_len);
@@ -4512,16 +4488,7 @@ PHP_REDIS_API void generic_z_command(INTERNAL_FUNCTION_PARAMETERS, char *command
     redis_cmd_append_sstr_int(&cmd, keys_count);
 
     /* Process input keys */
-    ZEND_HASH_FOREACH_KEY_VAL(ht_keys, idx, key, z_data) {
-        zend_string *tmp = NULL;
-
-        if (!key) {
-            char buf[ZEND_LTOA_BUF_LEN];
-
-            ZEND_LTOA(idx, buf, sizeof(buf));
-            tmp = key = zend_string_init(buf, strlen(buf), 0);
-        }
-
+    REDIS_HASH_FOREACH_KEY_VAL(ht_keys, key, z_data) {
         /* Apply key prefix if necessary */
         key = redis_key_prefix(redis_sock, key);
 
@@ -4530,8 +4497,7 @@ PHP_REDIS_API void generic_z_command(INTERNAL_FUNCTION_PARAMETERS, char *command
 
         /* Free our key if it was prefixed */
         zend_string_release(key);
-		if (tmp) zend_string_release(tmp);
-    } ZEND_HASH_FOREACH_END();
+    } REDIS_HASH_FOREACH_END();
 
     /* Weights */
     if(ht_weights != NULL) {
@@ -5046,28 +5012,18 @@ PHP_METHOD(Redis, hMset)
     zend_string_release(key);
 
     /* looping on each item of the array */
-    ZEND_HASH_FOREACH_KEY_VAL(ht_hash, idx, key, z_value_p) {
-        zend_string *hval, *tmp = NULL;
-
-        if (!key) {
-            char buf[ZEND_LTOA_BUF_LEN];
-
-            ZEND_LTOA(idx, buf, sizeof(buf));
-            tmp = key = zend_string_init(buf, strlen(buf), 0);
-        }
-
-        element_count += 2;
-
+    REDIS_HASH_FOREACH_KEY_VAL(ht_hash, key, z_value_p) {
         /* key is set. */
-        hval = redis_serialize(redis_sock, z_value_p);
+        zend_string *hval = redis_serialize(redis_sock, z_value_p);
 
         /* Append our member and value in place */
         redis_cmd_append_sstr(&set_cmds, key->val, key->len);
         redis_cmd_append_sstr(&set_cmds, hval->val, hval->len);
 
+        element_count += 2;
+
         zend_string_release(hval);
-        if (tmp) zend_string_release(tmp);
-    } ZEND_HASH_FOREACH_END();
+    } REDIS_HASH_FOREACH_END();
 
     /* Now construct the entire command */
     old_cmd = cmd;
