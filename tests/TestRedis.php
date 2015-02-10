@@ -2700,6 +2700,7 @@ class Redis_Test extends TestSuite
 		    ->exec();
 	    $this->assertTrue(is_array($ret));
 		$i = 0;
+var_dump($ret);
 		$ttl = $ret[$i++];
 	    $this->assertTrue($ttl === -1 || $ttl === -2);
 	    $this->assertTrue($ret[$i++] === array('val1', 'valX', FALSE)); // mget
@@ -4943,6 +4944,8 @@ class Redis_Test extends TestSuite
 }
 
 $str_test = isset($argv[1]) ? $argv[1] : NULL;
-exit(TestSuite::run("Redis_Test", $str_test));
+$code = TestSuite::run("Redis_Test", $str_test);
 
-?>
+if ($code) {
+	exit($code);
+}
